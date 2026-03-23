@@ -1,10 +1,13 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 from scipy.stats import linregress
 from fpdf import FPDF
 import tempfile
+import os
 
-# دالة إنشاء ملف PDF
+# دالة إنشاء ملف PDF للنتائج
 def create_pdf(results_list):
     pdf = FPDF()
     pdf.add_page()
@@ -23,19 +26,22 @@ def create_pdf(results_list):
         pdf.cell(200, 8, txt=f"- Std Error: {res['std_err']:.4f}", ln=True)
         pdf.ln(5)
     
-    # حفظ الملف في مسار مؤقت
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
         return tmp.name
 
-# --- واجهة التطبيق ---
-st.title("SciCalibrator")
+st.title("SciCalibrator 🧪")
+st.write("Upload your calibration data to start the analysis.")
 
-file = st.file_uploader("Upload calibration data", type=["csv", "xlsx"])
+file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
 
 if file is not None:
-    # معالجة البيانات
-    data = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
+    # قراءة وتنظيف البيانات
+    if file.name.endswith(".csv"):
+        data = pd.read_csv(file)
+    else:
+        data = pd.read_excel(file)
+
     for col in data.columns:
         data[col] = pd.to_numeric(data[col].astype(str).str.replace(',', ''), errors='coerce')
     data = data.dropna()
@@ -43,39 +49,49 @@ if file is not None:
     st.subheader("Data Preview")
     st.dataframe(data)
 
-    if st.button("Analyze"):
-        st.session_state.results = [] # تخزين النتائج للتقرير
+    if st.button("Run Full Analysis"):
+        st.session_state.results = [] 
         concentration = data.iloc[:, 0]
 
         for column in data.columns[1:]:
             y = data[column]
             slope, intercept, r_value, p_value, std_err = linregress(concentration, y)
+            y_pred = slope * concentration + intercept
             
-            # عرض النتائج في التطبيق
-            st.write(f"### {column}")
-            st.info(f"R²: {r_value**2:.4f} | Slope: {slope:.4f}")
+            st.markdown(f"### Analysis for: **{column}**")
             
-            # حفظ النتائج في القائمة لإدراجها في الـ PDF
-            st.session_state.results.append({
-                "name": column,
-                "slope": slope,
-                "intercept": intercept,
-                "r2": r_value**2,
-                "std_err": std_err
-            })
+            # عرض الرسوم البيانية
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+            
+            # منحنى المعايرة
+            ax1.scatter(concentration, y, color='blue')
+            ax1.plot(concentration, y_pred, color='red')
+            ax1.set_title("Calibration Curve")
+            
+            # رسم البواقي
+            ax2.scatter(concentration, y - y_pred, color='green')
+            ax2.axhline(0, color='black', linestyle='--')
+            ax2.set_title("Residual Plot")
+            
+            st.pyplot(fig)
 
-    # --- قسم الخدمة المدفوعة (التحميل) ---
-    if "results" in st.session_state:
-        st.divider()
-        st.subheader("💎 Premium Features")
-        
-        # هنا يمكنك إضافة بوابة دفع مستقبلاً، حالياً سنضع الزر مباشرة
-        if st.checkbox("Unlock PDF Report (Paid Service)"):
-            pdf_path = create_pdf(st.session_state.results)
-            with open(pdf_path, "rb") as f:
-                st.download_button(
-                    label="Download PDF Report",
-                    data=f,
-                    file_name="Calibration_Report.pdf",
-                    mime="application/pdf"
-                )
+            # تخزين النتائج
+            st.session_state.results.append({
+                "name": column, "slope": slope, "intercept": intercept, 
+                "r2": r_value**2, "std_err": std_err
+            })
+            
+            st.success(f"R²: {r_value**2:.4f} | Slope: {slope:.4f}")
+            st.divider()
+
+    # خيار تحميل التقرير (متاح للجميع الآن)
+    if "results" in st.session_state and st.session_state.results:
+        st.subheader("Export Results")
+        pdf_path = create_pdf(st.session_state.results)
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                label="Download Analysis Report (PDF)",
+                data=f,
+                file_name="Calibration_Report.pdf",
+                mime="application/pdf"
+            )
