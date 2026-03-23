@@ -57,3 +57,8 @@ if file is not None:
             st.write(f"Intercept: {intercept:.4f}")
             st.write(f"R²: {r_value**2:.4f}")
             st.write(f"Standard Error: {std_err:.4f}")
+            # تنظيف البيانات: إزالة الفواصل وتحويل لأرقام
+      for col in df.columns:
+            df[col] = df[col].astype(str).str.replace(',', '')
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df = df.dropna()
