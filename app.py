@@ -8,6 +8,16 @@ import tempfile
 import os
 
 # دالة إنشاء ملف PDF للنتائج
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import linregress
+from fpdf import FPDF
+import tempfile
+import os
+
+# دالة إنشاء ملف PDF للنتائج
 def create_pdf(results_list):
     pdf = FPDF()
     pdf.add_page()
@@ -83,6 +93,18 @@ if file is not None:
             
             st.success(f"R²: {r_value**2:.4f} | Slope: {slope:.4f}")
             st.divider()
+
+    # خيار تحميل التقرير (متاح للجميع الآن)
+    if "results" in st.session_state and st.session_state.results:
+        st.subheader("Export Results")
+        pdf_path = create_pdf(st.session_state.results)
+        with open(pdf_path, "rb") as f:
+            st.download_button(
+                label="Download Analysis Report (PDF)",
+                data=f,
+                file_name="Calibration_Report.pdf",
+                mime="application/pdf"
+            )
 
     # خيار تحميل التقرير (متاح للجميع الآن)
     if "results" in st.session_state and st.session_state.results:
