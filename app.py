@@ -6,7 +6,23 @@ from scipy.stats import linregress
 from fpdf import FPDF
 import tempfile
 import os
+import pandas as pd
 
+def load_co2_data(file_path):
+    # 1. تخطي الأسطر الـ 40 الأولى (التي تحتوي على التعليقات)
+    # نستخدم skiprows=40 لأن هيكل الملف يشير إلى هذا العدد تقريباً
+    df = pd.read_csv(file_path, skiprows=40, sep='\s+', names=['year', 'month', 'dec_date', 'avg', 'int', 'days', 'stdev', 'unc'])
+    
+    # 2. تنظيف البيانات: استبعاد القيم غير المنطقية (المفقودة المشار إليها بـ -1)
+    df = df[df['avg'] > 0]
+    
+    # 3. تحويل أعمدة التاريخ إلى تنسيق زمني
+    df['date'] = pd.to_datetime(dict(year=df.year, month=df.month, day=1))
+    
+    return df
+
+# استدعاء الدالة
+# data = load_co2_data('co2_mm_mlo.csv')
 # ضبط إعدادات الصفحة لتكون عريضة واحترافية
 st.set_page_config(page_title="SciCalibrator", layout="wide")
 
