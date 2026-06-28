@@ -125,19 +125,37 @@ file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
 
 if file is not None:
     try:
-        # هنا تم استبدال الكود القديم باستدعاء الدالة الذكية والمطورة
-        data = smart_load_data(file)
-
-        # تحويل البيانات إلى أرقام وتنظيف الأسطر الفارغة أو التالفة
-        for col in data.columns:
-            data[col] = pd.to_numeric(data[col].astype(str).str.replace(',', ''), errors='coerce')
-        data = data.dropna()
-
-        if data.empty:
-            st.error("The file context after filtering is empty. Please ensure numeric values match the headers.")
+        # 1. القراءة الذكية للملف وتجاوز الأسطر التوضيحية تلقائياً
+        if file.name.endswith(".csv"):
+            data = pd.read_csv(
+                file, 
+                comment='#',        # يتجاهل أي سطر يبدأ بـ # كأسلوب ملفات NOAA
+                sep=None,           # يكتشف الفاصل تلقائياً (فاصلة أو مسافات)
+                engine='python', 
+                on_bad_lines='skip' # يتخطى الأسطر المعطوبة
+            )
         else:
-            st.subheader("Data Preview (Cleaned & Parsed)")
-            st.dataframe(data, use_container_width=True)
+            data = pd.read_excel(file)
+
+        # تنظيف مساحات الأسماء في العناوين
+        data.columns = data.columns.str.strip()
+
+        # 2. تحويل ذكي للأعمدة الرقمية فقط دون تدمير البيانات
+        for col in data.columns:
+            # محاولة تحويل العمود إلى رقمي مع استبدال الفواصل
+            converted = pd.to_numeric(data[col].astype(str).str.replace(',', '').str.strip(), errors='coerce')
+            
+            # إذا كان العمود يحتوي على أرقام فعلية (أكثر من 30% من الأسطر أرقام)، نعتمد التحويل
+            if converted.notna().sum() > (len(data) * 0.3):
+                data[col] = converted
+
+        # 3. حذف الأسطر الفارغة تماماً فقط، بدلاً من حذف الأسطر التي تحتوي على نص
+        # هذا يضمن بقاء البيانات الرقمية مطابقة لعناوينها
+        data = data.dropna(subset=[data.columns[0]]) # يضمن وجود قيمة في العمود الأول على الأقل
+        data = data.reset_index(drop=True)
+
+        st.subheader("Data Preview")
+        st.dataframe(data, use_container_width=True)
 
             if st.button("Run Full Analysis"):
                 if "results" in st.session_state:
